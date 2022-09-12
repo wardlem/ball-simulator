@@ -1,0 +1,381 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>Ball Simulation!</title>
+    <!-- <script async src="assets/script.js"></script> -->
+</head>
+<body>
+    <div id="canvas-container">
+        <canvas width="500px" height="300px" id="simulation-canvas"></canvas>
+        <div id="controls">
+            <div class="input-section">
+                <label>
+                    Ball Count:
+                    <input type="range" id="ball-count-input" min="1" max="100" step="1" value="20">
+                </label>
+            </div>
+            <div class="input-section">
+                <label>
+                    Gravity:
+                    <input type="range" id="gravity-input" min="1" max="50" step="1" value="10">
+                </label>
+            </div>
+            <div class="input-section">
+                <label>
+                    Elasticity:
+                    <input type="range" id="bounce-dampener-input" min="0.1" max="2" step="0.1" value="0.9">
+                </label>
+            </div>
+            <div class="input-section">
+                <label>
+                    Ball Radius:
+                    <input type="range" id="ball-radius-input" min="4" max="50" step="1" value="16">
+                </label>
+            </div>
+            
+            <button id="start-over-button">Start Over</button>
+        </div>
+    </div>
+    <script>
+    let CANVAS_WIDTH = 0;
+    let CANVAS_HEIGHT = 0;
+    let BALL_RADIUS = 16;
+    let GRAVITY_PER_SECOND = 10;
+    let MAX_VELOCITY = 20;
+    let BOUNCE_DAMPENER = 0.9;
+    let BALL_COUNT = 20;
+    let MIN_START_HEIGHT = 10;
+
+    let GAME_OBJECTS = [];
+
+
+    const COLORS = [
+        'red',
+        'orange',
+        'yellow',
+        'green',
+        'blue',
+        'purple',
+        'pink',
+        'brown',
+        'black',
+        'gold',
+        'cyan',
+        'lime',
+        'magenta',
+        'violet',
+        'darkBlue'
+    ];
+
+    function runBalls() {
+        const canvasElement = document.getElementById("simulation-canvas");
+        const canvasContext = canvasElement.getContext('2d');
+
+        setWindowSize();
+        startOver();
+        startGameLoop(canvasContext);
+
+        initControls();
+        
+        window.addEventListener('resize', setWindowSize);
+    }
+
+    function setWindowSize() {
+        const canvasElement = document.getElementById("simulation-canvas");
+
+        CANVAS_HEIGHT = window.innerHeight;
+        CANVAS_WIDTH = window.innerWidth
+
+        canvasElement.height = CANVAS_HEIGHT;
+        canvasElement.width = CANVAS_WIDTH;
+    }
+
+    let timestamp;
+    function startGameLoop(canvasContext) {
+        function loop(t)
+        {
+            if (typeof timestamp !== 'number') {
+                timestamp = t; 
+            }
+        
+            const elapsed = t - timestamp;
+            timestamp = t;
+            
+            const seconds = elapsed / 1000;
+            for (const gameObject of GAME_OBJECTS) {
+                gameObject.update(seconds);
+            }
+        
+            canvasContext.clearRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
+            for (const gameObject of GAME_OBJECTS) {
+                gameObject.render(canvasContext);
+            }
+        
+            window.requestAnimationFrame(loop);
+        }
+
+        window.requestAnimationFrame(loop);
+    }
+
+
+    function Ball(options = {})
+    {
+        const {
+            x = 0,
+            y = 0,
+            trajectory = 0,
+            velocity = 0,
+            color = "black",
+        } = options;
+
+        return {
+            x,
+            y,
+            trajectory,
+            velocity,
+            color,
+            __proto__: Ball.prototype,
+        };
+    }
+
+    Ball.prototype.render = function render(canvasContext)
+    {
+        canvasContext.save();
+
+        canvasContext.fillStyle = this.color;
+        canvasContext.strokeStyle = this.color;
+        canvasContext.lineWidth = 2
+
+        canvasContext.beginPath();
+        canvasContext.arc(this.x, this.y, BALL_RADIUS, 0, Math.PI * 2);
+        canvasContext.fill();
+        canvasContext.stroke();
+
+        canvasContext.restore();
+    }
+
+    Ball.prototype._update = function update(seconds)
+    {
+        this.velocity = 10;
+        const updateX = this.velocity * seconds * Math.sin(this.trajectory);
+        const updateY = this.velocity * seconds * Math.cos(this.trajectory);
+
+        this.x += updateX;
+        this.y += updateY;
+
+        // Gravity
+        this.applyForce(0, GRAVITY_PER_SECOND, seconds);
+    }
+
+    Ball.prototype.applyForce = function applyForce(trajectory, velocity, seconds)
+    {
+        const directionDiff = this.trajectory - trajectory;
+        let trajectoryChange = Math.random() * seconds;
+        if (Math.random() < 0.5)
+        {
+            trajectoryChange *= -1;
+        }
+        this.trajectory += trajectoryChange;
+
+        if (this.trajectory > Math.PI * 2)
+        {
+            this.trajectory -= Math.PI * 2;
+        }
+    }
+
+    Ball.prototype.update = function update(seconds)
+    {
+        this.velocity += seconds * GRAVITY_PER_SECOND;
+        
+        if (this.velocity < 0)
+        {
+            this.velocity = Math.max(this.velocity, MAX_VELOCITY * -1);
+        }
+        else
+        {
+            this.velocity = Math.min(this.velocity, MAX_VELOCITY);
+        }
+
+        this.y += this.velocity;
+        
+        const maxY = CANVAS_HEIGHT - BALL_RADIUS;
+
+        if (this.y >= maxY && this.velocity >= 0)
+        {
+            this.velocity *= -1 * BOUNCE_DAMPENER;
+            this.y = maxY;
+        }
+    }
+
+    function initControls() {
+        const startOverButton = document.getElementById("start-over-button");
+        const ballCountInput = document.getElementById("ball-count-input");
+        const gravityInput = document.getElementById("gravity-input");
+        const bounceDampenerInput = document.getElementById("bounce-dampener-input");
+        const ballRadiusInput = document.getElementById("ball-radius-input");
+
+        // Initialize start over button
+        startOverButton.addEventListener("click", startOver);
+
+        // Initialize ball count slider
+        ballCountInput.addEventListener("input", changeBallCount);
+        ballCountInput.value = BALL_COUNT;
+
+        // Initialize the gravity slider
+        gravityInput.addEventListener("input", changeGravity);
+        gravityInput.value = GRAVITY_PER_SECOND;
+
+        // Initialize the elasticity slider
+        bounceDampenerInput.addEventListener("input", changeBounceDampener);
+        bounceDampenerInput.value = BOUNCE_DAMPENER;
+
+        // Initialize the ball size slider
+        ballRadiusInput.addEventListener("input", changeBallRadius);
+        ballRadiusInput.value = BALL_RADIUS;
+    }
+
+    function startOver() {
+
+        GAME_OBJECTS =  [];
+        for (let index = 0; index < BALL_COUNT; index += 1) {
+            addBall();
+        }
+    }
+
+    function addBall() {
+        const x = Math.round(Math.random() * (CANVAS_WIDTH - (2 * BALL_RADIUS))) + BALL_RADIUS;
+        const y = Math.round(Math.random() * (CANVAS_HEIGHT - (2 * BALL_RADIUS) - MIN_START_HEIGHT)) + BALL_RADIUS + MIN_START_HEIGHT;
+        const color = COLORS[Math.floor(Math.random() * COLORS.length)];
+        const ball = Ball({
+            x: x,
+            y: y,
+            color: color,
+        });
+
+        console.log("made a new ball", ball, BALL_RADIUS, MIN_START_HEIGHT);
+
+        GAME_OBJECTS.push(ball);
+    }
+
+    function changeBallCount(event) {
+        BALL_COUNT = Number(event.target.value);
+        if (BALL_COUNT < GAME_OBJECTS.length) {
+            while (BALL_COUNT < GAME_OBJECTS.length) {
+                GAME_OBJECTS.pop();
+            }
+        } else {
+            while (BALL_COUNT > GAME_OBJECTS.length) {
+                addBall();
+            }
+        }
+    }
+
+    function changeGravity(event) {
+        GRAVITY_PER_SECOND = Number(event.target.value);
+    }
+
+    function changeBounceDampener(event) {
+        BOUNCE_DAMPENER = Number(event.target.value);
+    }
+
+    function changeBallRadius(event) {
+        BALL_RADIUS = Number(event.target.value);
+    }
+
+    runBalls()
+
+    </script>
+    <style>
+        /* Box sizing rules */
+    *,
+    *::before,
+    *::after {
+    box-sizing: border-box;
+    }
+
+    /* Remove default margin */
+    body,
+    h1,
+    h2,
+    h3,
+    h4,
+    p,
+    figure,
+    blockquote,
+    dl,
+    dd {
+    margin: 0;
+    }
+
+    /* Remove list styles on ul, ol elements with a list role, which suggests default styling will be removed */
+    ul[role='list'],
+    ol[role='list'] {
+    list-style: none;
+    }
+
+    /* Set core root defaults */
+    html:focus-within {
+    scroll-behavior: smooth;
+    }
+
+    /* Set core body defaults */
+    body {
+    min-height: 100vh;
+    text-rendering: optimizeSpeed;
+    line-height: 1.5;
+    }
+
+    /* A elements that don't have a class get default styles */
+    a:not([class]) {
+    text-decoration-skip-ink: auto;
+    }
+
+    /* Make images easier to work with */
+    img,
+    picture {
+    max-width: 100%;
+    display: block;
+    }
+
+    /* Inherit fonts for inputs and buttons */
+    input,
+    button,
+    textarea,
+    select {
+    font: inherit;
+    }
+
+    /* Remove all animations, transitions and smooth scroll for people that prefer not to see them */
+    @media (prefers-reduced-motion: reduce) {
+    html:focus-within {
+    scroll-behavior: auto;
+    }
+    
+    *,
+    *::before,
+    *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+        scroll-behavior: auto !important;
+    }
+    }
+
+    body {
+        overflow-y: hidden;
+    }
+
+    #canvas-container  {
+        position: relative;
+    } 
+
+    #controls {
+        position:absolute;
+        right:10px;
+        top:10px;
+    }
+
+    </style>
+</body>
+</html>
